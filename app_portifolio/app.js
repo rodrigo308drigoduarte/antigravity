@@ -10,7 +10,7 @@ class App {
     }
 
     init() {
-        console.log("Lumina App Inicializado!");
+        console.log("Safe Picture App Inicializado!");
         this.setupEventListeners();
     }
 
@@ -18,10 +18,10 @@ class App {
         const btnLogin = document.getElementById('btn-login');
         const btnSignup = document.getElementById('btn-signup');
 
-        if(btnLogin) {
+        if (btnLogin) {
             btnLogin.addEventListener('click', () => this.showLogin());
         }
-        if(btnSignup) {
+        if (btnSignup) {
             btnSignup.addEventListener('click', () => this.showLogin());
         }
     }
@@ -47,7 +47,7 @@ class App {
                 </p>
             </div>
         `;
-        
+
         // Simular o evento de submissão do formulário para mostrar o dashboard
         const form = document.getElementById('login-form');
         form.addEventListener('submit', (e) => {
@@ -91,7 +91,7 @@ class App {
                 </div>
             </div>
         `;
-        
+
         // Adiciona efeito hover via JS para os cards simulados e recarrega os ícones
         lucide.createIcons();
     }
