@@ -28,8 +28,8 @@
                 Safe Picture
             </a>
             <div class="nav-links">
-                <button class="btn btn-ghost" id="btn-login">Login</button>
-                <button class="btn btn-primary" id="btn-signup">Começar Agora</button>
+                <button class="btn btn-ghost" id="btn-login" onclick="if(window.app) window.app.showLogin()">Login</button>
+                <button class="btn btn-primary" id="btn-signup" onclick="if(window.app) window.app.showLogin()">Começar Agora</button>
             </div>
         </div>
     </nav>
@@ -42,7 +42,7 @@
                 <h1>Sua arte, <br><span class="highlight">eternizada e organizada.</span></h1>
                 <p>O portfólio em nuvem definitivo para fotógrafos profissionais. Faça upload, crie álbuns elegantes e
                     encante seus clientes.</p>
-                <button class="btn btn-primary btn-large" onclick="app.showLogin()">Criar meu portfólio</button>
+                <button class="btn btn-primary btn-large" onclick="if(window.app) window.app.showLogin()">Criar meu portfólio</button>
             </div>
             <div class="hero-image-placeholder">
                 <i data-lucide="image" class="hero-icon"></i>
@@ -58,8 +58,10 @@
     <!-- Script Principal -->
     <script src="app.js"></script>
     <script>
-        // Inicializa os ícones do Lucide
-        lucide.createIcons();
+        // Inicializa os ícones do Lucide após o DOM e o app estarem prontos
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+        });
     </script>
 </body>
 
