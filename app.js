@@ -6,7 +6,9 @@
 // Configurações do Supabase
 const SUPABASE_URL = 'https://weirnbpmganvijbiecir.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_7cU0Bdx8lPDUd57AvgnMpg_DaV2f9Gj';
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// O segredo está aqui: usamos o objeto global 'supabase' vindo do script para criar o nosso cliente
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 class App {
     constructor() {
@@ -19,22 +21,29 @@ class App {
     async init() {
         console.log("Safe Picture App Conectado ao Supabase!");
         this.setupNavbarListeners();
-        this.showLandingPage();
     }
 
     setupNavbarListeners() {
+        // Garantimos que os botões da navbar funcionem sempre
         const btnLogin = document.getElementById('btn-login');
         const btnSignup = document.getElementById('btn-signup');
-        if (btnLogin) btnLogin.onclick = () => this.showLogin();
-        if (btnSignup) btnSignup.onclick = () => this.showLogin();
-    }
-
-    showLandingPage() {
-        // A landing page já está no HTML, mas se precisarmos resetar o conteúdo:
-        // this.appContent.innerHTML = ... (conteúdo original do index.html)
+        
+        if (btnLogin) {
+            btnLogin.onclick = (e) => {
+                e.preventDefault();
+                this.showLogin();
+            };
+        }
+        if (btnSignup) {
+            btnSignup.onclick = (e) => {
+                e.preventDefault();
+                this.showLogin();
+            };
+        }
     }
 
     showLogin() {
+        console.log("Abrindo área de login...");
         this.appContent.innerHTML = `
             <div style="max-width: 400px; margin: 4rem auto; padding: 2rem; background: var(--color-bg-secondary); border-radius: 16px; border: 1px solid var(--color-border); animation: fadeIn 0.5s ease;">
                 <h2 style="margin-bottom: 1.5rem; text-align: center;">Acesse sua Nuvem</h2>
@@ -52,37 +61,43 @@ class App {
             </div>
         `;
 
-        document.getElementById('login-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.showDashboard();
-        });
+        const form = document.getElementById('login-form');
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.showDashboard();
+            });
+        }
     }
 
     async showDashboard() {
         this.appContent.innerHTML = `<div style="text-align:center; padding: 5rem;"><h3>Carregando seus álbuns da nuvem...</h3></div>`;
         
         // Buscar álbuns do Supabase
-        const { data: albums, error } = await supabase
+        const { data: albums, error } = await supabaseClient
             .from('albums')
             .select('*, photos(url)')
             .order('created_at', { ascending: false });
 
         if (error) {
             console.error("Erro ao buscar álbuns:", error);
-            alert("Erro ao conectar com o banco de dados. Verifique se as tabelas foram criadas.");
+            alert("Erro ao conectar com o banco de dados. Verifique se você criou as tabelas no SQL Editor do Supabase.");
             return;
         }
 
-        // Calcular armazenamento (simulado com base no número de fotos ou real se quiser)
-        const totalPhotos = albums.reduce((acc, album) => acc + album.photos.length, 0);
-        this.usedStorageMB = totalPhotos * 5; // Simulação: 5MB por foto
+        // Calcular armazenamento simulado
+        const totalPhotos = albums.reduce((acc, album) => acc + (album.photos ? album.photos.length : 0), 0);
+        this.usedStorageMB = totalPhotos * 5; 
         const usedGB = (this.usedStorageMB / 1024).toFixed(2);
         const percent = ((usedGB / this.totalStorageGB) * 100).toFixed(1);
 
-        document.querySelector('.nav-links').innerHTML = `
-            <span style="color: var(--color-text-secondary); margin-right: 1rem; align-self: center;">Plano 120GB Ativo</span>
-            <button class="btn btn-ghost" onclick="location.reload()">Sair</button>
-        `;
+        const navLinks = document.querySelector('.nav-links');
+        if (navLinks) {
+            navLinks.innerHTML = `
+                <span style="color: var(--color-text-secondary); margin-right: 1rem; align-self: center;">Plano 120GB Ativo</span>
+                <button class="btn btn-ghost" onclick="location.reload()">Sair</button>
+            `;
+        }
 
         this.appContent.innerHTML = `
             <div style="max-width: 1200px; margin: 2rem auto; padding: 0 2rem; animation: fadeIn 0.5s ease;">
@@ -133,14 +148,16 @@ class App {
     }
 
     bindDashboardEvents() {
-        document.getElementById('btn-new-album').onclick = () => this.createNewAlbum();
-        document.getElementById('card-add-album').onclick = () => this.createNewAlbum();
+        const btn = document.getElementById('btn-new-album');
+        const card = document.getElementById('card-add-album');
+        if (btn) btn.onclick = () => this.createNewAlbum();
+        if (card) card.onclick = () => this.createNewAlbum();
     }
 
     async createNewAlbum() {
         const name = prompt("Nome do novo álbum profissional:");
         if (name) {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('albums')
                 .insert([{ name: name }])
                 .select();
@@ -156,13 +173,13 @@ class App {
     async showAlbum(id) {
         this.appContent.innerHTML = `<div style="text-align:center; padding: 5rem;"><h3>Abrindo álbum...</h3></div>`;
 
-        const { data: album, error: albumErr } = await supabase
+        const { data: album, error: albumErr } = await supabaseClient
             .from('albums')
             .select('*')
             .eq('id', id)
             .single();
 
-        const { data: photos, error: photoErr } = await supabase
+        const { data: photos, error: photoErr } = await supabaseClient
             .from('photos')
             .select('*')
             .eq('album_id', id);
@@ -183,7 +200,7 @@ class App {
                 <div id="upload-zone" style="background: var(--color-bg-secondary); padding: 3rem; border-radius: 16px; border: 2px dashed var(--color-border); text-align: center; cursor: pointer; transition: var(--transition-smooth);">
                     <i data-lucide="upload-cloud" style="width: 48px; height: 48px; color: var(--color-accent); margin-bottom: 1rem;"></i>
                     <h3>Upload para Nuvem (120GB Disponível)</h3>
-                    <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">Clique para selecionar suas fotos de alta resolução</p>
+                    <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">Clique para selecionar suas fotos</p>
                     <input type="file" id="photo-upload" multiple accept="image/*" style="display: none;">
                     <button class="btn btn-primary" onclick="document.getElementById('photo-upload').click()">Selecionar Fotos</button>
                     <div id="upload-status" style="margin-top: 1rem; color: var(--color-text-secondary); font-size: 0.9rem;"></div>
@@ -200,11 +217,15 @@ class App {
         `;
 
         lucide.createIcons();
-        document.getElementById('photo-upload').onchange = (e) => this.handleUpload(e, id);
+        const uploadInput = document.getElementById('photo-upload');
+        if (uploadInput) {
+            uploadInput.onchange = (e) => this.handleUpload(e, id);
+        }
         
-        // Efeito visual no dropzone
         const zone = document.getElementById('upload-zone');
-        zone.onclick = () => document.getElementById('photo-upload').click();
+        if (zone) {
+            zone.onclick = () => uploadInput.click();
+        }
     }
 
     async handleUpload(event, albumId) {
@@ -212,15 +233,13 @@ class App {
         const status = document.getElementById('upload-status');
         
         for (const file of files) {
-            status.innerText = `Enviando ${file.name}...`;
+            if (status) status.innerText = `Enviando ${file.name}...`;
             
-            // 1. Gerar nome único para o arquivo
             const fileExt = file.name.split('.').pop();
             const fileName = `${Math.random()}.${fileExt}`;
             const filePath = `${albumId}/${fileName}`;
 
-            // 2. Upload para o Supabase Storage (Bucket 'photos')
-            const { data: storageData, error: storageErr } = await supabase.storage
+            const { data: storageData, error: storageErr } = await supabaseClient.storage
                 .from('photos')
                 .upload(filePath, file);
 
@@ -229,30 +248,30 @@ class App {
                 continue;
             }
 
-            // 3. Pegar a URL pública da foto
-            const { data: { publicUrl } } = supabase.storage
+            const { data: { publicUrl } } = supabaseClient.storage
                 .from('photos')
                 .getPublicUrl(filePath);
 
-            // 4. Salvar a URL no Banco de Dados
-            const { error: dbErr } = await supabase
+            const { error: dbErr } = await supabaseClient
                 .from('photos')
                 .insert([{ album_id: albumId, url: publicUrl }]);
 
             if (dbErr) console.error("Erro no DB:", dbErr);
         }
 
-        status.innerText = "Upload concluído!";
+        if (status) status.innerText = "Upload concluído!";
         setTimeout(() => this.showAlbum(albumId), 1000);
     }
 }
 
 // Inicializa a aplicação
-window.app = new App();
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new App();
+});
 
-// Estilos dinâmicos (mantidos)
-const style = document.createElement('style');
-style.textContent = `
+// Estilos dinâmicos
+const styleSheet = document.createElement('style');
+styleSheet.textContent = `
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     .album-card { background: var(--color-bg-secondary); border-radius: 16px; border: 1px solid var(--color-border); overflow: hidden; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     .album-card:hover { transform: translateY(-5px); border-color: var(--color-accent); }
@@ -260,4 +279,4 @@ style.textContent = `
     .album-card-add:hover { border-color: var(--color-accent); color: var(--color-accent); }
     #upload-zone:hover { border-color: var(--color-accent); background: #1a1a1a; }
 `;
-document.head.appendChild(style);
+document.head.appendChild(styleSheet);
