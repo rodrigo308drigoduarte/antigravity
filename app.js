@@ -210,8 +210,13 @@ class App {
         const uploadInput = document.getElementById('photo-upload');
         if (uploadInput) uploadInput.onchange = (e) => this.handleUpload(e, albumId);
 
+        // O clique no zone só aciona se não vier de um botão filho
         const zone = document.getElementById('upload-zone');
-        if (zone) zone.onclick = () => uploadInput.click();
+        if (zone) zone.onclick = (e) => {
+            if (e.target === zone || e.target.tagName === 'I' || e.target.tagName === 'H3' || e.target.tagName === 'P') {
+                uploadInput.click();
+            }
+        };
 
         const btnEdit = document.getElementById('btn-toggle-edit');
         if (btnEdit) btnEdit.onclick = async () => {
@@ -337,29 +342,79 @@ class App {
 
     async handleUpload(event, albumId) {
         const files = Array.from(event.target.files);
+        if (!files.length) return;
+
         const status = document.getElementById('upload-status');
-        const maxOrder = this.currentPhotos.length > 0 ? Math.max(...this.currentPhotos.map(p => p.sort_order)) + 1 : 0;
+        const maxOrder = this.currentPhotos.length > 0
+            ? Math.max(...this.currentPhotos.map(p => p.sort_order || 0)) + 1
+            : 0;
+
+        let successCount = 0;
+        let errorCount = 0;
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
-            if (status) status.innerText = `Enviando ${i + 1} de ${files.length}: ${file.name}...`;
+            if (status) status.innerText = `⏳ Enviando ${i + 1} de ${files.length}: ${file.name}...`;
 
+            // 1. Gera nome único para o arquivo no Storage
             const fileExt = file.name.split('.').pop();
             const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
             const filePath = `${albumId}/${fileName}`;
             const displayName = file.name.split('.').slice(0, -1).join('.');
 
-            const { error: storageErr } = await supabaseClient.storage.from('photos').upload(filePath, file);
-            if (storageErr) { console.error("Erro no Storage:", storageErr); continue; }
+            // 2. Envia o arquivo para o Supabase Storage (bucket 'photos')
+            const { error: storageErr } = await supabaseClient.storage
+                .from('photos')
+                .upload(filePath, file);
 
-            const { data: { publicUrl } } = supabaseClient.storage.from('photos').getPublicUrl(filePath);
-            const { error: dbErr } = await supabaseClient.from('photos')
+            if (storageErr) {
+                console.error("Erro no Storage:", storageErr);
+                if (status) status.innerText = `❌ Erro ao enviar ${file.name}: ${storageErr.message}`;
+                errorCount++;
+                continue;
+            }
+
+            // 3. Pega a URL pública da foto enviada
+            const { data: urlData } = supabaseClient.storage
+                .from('photos')
+                .getPublicUrl(filePath);
+            const publicUrl = urlData.publicUrl;
+
+            // 4. Tenta salvar no banco COM os campos novos (display_name, sort_order)
+            let { error: dbErr } = await supabaseClient.from('photos')
                 .insert([{ album_id: albumId, url: publicUrl, display_name: displayName, sort_order: maxOrder + i }]);
-            if (dbErr) console.error("Erro no DB:", dbErr);
+
+            // 5. Se falhou (colunas novas não existem ainda), tenta só com os campos básicos
+            if (dbErr && dbErr.message && dbErr.message.includes('column')) {
+                console.warn("Colunas novas não encontradas, tentando inserção básica...");
+                const { error: dbErr2 } = await supabaseClient.from('photos')
+                    .insert([{ album_id: albumId, url: publicUrl }]);
+                if (dbErr2) {
+                    console.error("Erro no DB (básico):", dbErr2);
+                    if (status) status.innerText = `❌ Erro ao salvar ${file.name} no banco: ${dbErr2.message}`;
+                    errorCount++;
+                    continue;
+                }
+            } else if (dbErr) {
+                console.error("Erro no DB:", dbErr);
+                if (status) status.innerText = `❌ Erro ao salvar ${file.name}: ${dbErr.message}`;
+                errorCount++;
+                continue;
+            }
+
+            successCount++;
         }
 
-        if (status) status.innerText = "Upload concluído!";
-        setTimeout(() => this.showAlbum(albumId), 1000);
+        // 6. Feedback final e recarrega o álbum
+        if (status) {
+            if (errorCount === 0) {
+                status.innerText = `✅ ${successCount} foto(s) enviada(s) com sucesso!`;
+            } else {
+                status.innerText = `⚠️ ${successCount} enviada(s), ${errorCount} com erro. Verifique se o bucket 'photos' existe e está público no Supabase.`;
+            }
+        }
+
+        setTimeout(() => this.showAlbum(albumId), 1500);
     }
 }
 
